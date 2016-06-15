@@ -6,6 +6,9 @@ import android.graphics.Paint;
 import android.hardware.Camera;
 import android.hardware.Camera.AutoFocusCallback;
 import android.hardware.Camera.PreviewCallback;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -21,149 +24,78 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
 
     private static final String TAG = CameraPreview.class.getSimpleName();
 
-    private SurfaceHolder holder;
-    private Camera camera;
-    private PreviewCallback previewCallback;
-    private AutoFocusCallback autoFocusCallback;
-    private List<Camera.Size> supportedPreviewSizes;
-    private Camera.Size previewSize;
+    private SurfaceHolder holder = null;
+
+    private int cameraId = -1;
+    private Camera camera = null;
+    private PreviewCallback previewCallback = null;
+    private AutoFocusCallback autoFocusCallback = null;
+    private List<Camera.Size> supportedPreviewSizes = null;
+    private Camera.Size previewSize = null;
+    private int degrees = 0;
+
     private Paint paint = new Paint();
 
-    public CameraPreview(Context context, Camera camera, PreviewCallback previewCb, AutoFocusCallback autoFocusCb) {
+    public CameraPreview(@NonNull Context context) {
         super(context);
-        this.camera = camera;
-        previewCallback = previewCb;
-        autoFocusCallback = autoFocusCb;
-
-        if (camera != null) {
-            Camera.Parameters parameters = this.camera.getParameters();
-            if (parameters != null)
-                supportedPreviewSizes = parameters.getSupportedPreviewSizes();
-            else
-                supportedPreviewSizes = null;
-        }
-
-        // Install a SurfaceHolder.Callback so we get notified when the
-        // underlying surface is created and destroyed.
-        holder = getHolder();
-        holder.addCallback(this);
-
-        // deprecated setting, but required on Android versions prior to 3.0
-        //holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
     }
 
-    @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        final int width = resolveSize(getSuggestedMinimumWidth(), widthMeasureSpec);
-        final int height = resolveSize(getSuggestedMinimumHeight(), heightMeasureSpec);
-
-        if (supportedPreviewSizes != null) {
-            previewSize = getOptimalPreviewSize(supportedPreviewSizes, width, height);
-            float ratio;
-            if (previewSize.height >= previewSize.width)
-                ratio = (float) previewSize.height / (float) previewSize.width;
-            else
-                ratio = (float) previewSize.width / (float) previewSize.height;
-
-            // One of these methods should be used, second method squishes preview slightly
-            //setMeasuredDimension(width, (int) (width * ratio));
-            //setMeasuredDimension((int) (width * ratio), height);
-            setMeasuredDimension(width, height);
-        }
-        else
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    public CameraPreview(@NonNull Context context, AttributeSet attrs) {
+        super(context, attrs);
     }
 
-    private Camera.Size getOptimalPreviewSize(List<Camera.Size> sizes, int w, int h) {
-        final double ASPECT_TOLERANCE = 0.1;
-        double targetRatio = (double) h / w;
-
-        if (sizes == null)
-            return null;
-
-        Camera.Size optimalSize = null;
-        double minDiff = Double.MAX_VALUE;
-
-        int targetHeight = h;
-
-        for (Camera.Size size : sizes) {
-            double ratio = (double) size.height / size.width;
-            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE)
-                continue;
-
-            if (Math.abs(size.height - targetHeight) < minDiff) {
-                optimalSize = size;
-                minDiff = Math.abs(size.height - targetHeight);
-            }
-        }
-
-        if (optimalSize == null) {
-            minDiff = Double.MAX_VALUE;
-            for (Camera.Size size : sizes) {
-                if (Math.abs(size.height - targetHeight) < minDiff) {
-                    optimalSize = size;
-                    minDiff = Math.abs(size.height - targetHeight);
-                }
-            }
-        }
-
-        return optimalSize;
+    public CameraPreview(@NonNull Context context, AttributeSet attrs, int defStyleAttr) {
+        super(context, attrs, defStyleAttr);
     }
 
-    @SuppressWarnings("deprecation")
-    public void surfaceCreated(SurfaceHolder holder) {
-        if (camera != null) {
-            try {
-                camera.setPreviewDisplay(holder);
-            }
-            catch (IOException e) {
-                Log.d("DBG", "Error setting camera preview: " + e.getMessage());
-            }
-        }
+    public CameraPreview(@NonNull Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
+        super(context, attrs, defStyleAttr, defStyleRes);
     }
 
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        // Camera preview released in activity
-    }
-
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        /*
-         * If your preview can change or rotate, take care of those events here.
-         * Make sure to stop the preview before resizing or reformatting it.
-         */
-        if (this.holder.getSurface() == null) {
-            // preview surface does not exist
-            return;
-        }
-
-        // stop preview before making changes
-        try {
-            if (camera != null)
-                camera.stopPreview();
-        }
-        catch (Exception e) {
-            // ignore: tried to stop a non-existent preview
-        }
-
-        try {
+    public void open(int cameraId, @Nullable PreviewCallback previewCb, @Nullable AutoFocusCallback autoFocusCb) throws Exception {
+        this.cameraId = cameraId;
+        this.camera = Camera.open(cameraId);
+        if (this.camera != null) {
+            previewCallback = previewCb;
+            autoFocusCallback = autoFocusCb;
+            supportedPreviewSizes = null;
             if (camera != null) {
-                Camera.Parameters parameters = camera.getParameters();
-                if (parameters != null) {
-                    parameters.setPreviewSize(previewSize.width, previewSize.height);
-                    camera.setDisplayOrientation(90);
-                    camera.setPreviewDisplay(this.holder);
-                    camera.setPreviewCallback(previewCallback);
-                    camera.startPreview();
-                    camera.autoFocus(autoFocusCallback);
-                }
+                Camera.Parameters parameters = this.camera.getParameters();
+                if (parameters != null)
+                    supportedPreviewSizes = parameters.getSupportedPreviewSizes();
             }
-        }
-        catch (Exception e) {
-            Log.d("DBG", "Error starting camera preview: " + e.getMessage());
+            previewSize = null;
+            degrees = 0;
+
+            // installs a SurfaceHolder.Callback so we get notified when the
+            // underlying surface is created and destroyed.
+            holder = getHolder();
+            holder.addCallback(this);
         }
     }
 
-    private static int setCameraDisplayOrientation(Activity activity, int cameraId, Camera camera) {
+    public void close() {
+        if (holder != null) {
+            holder.removeCallback(this);
+            holder = null;
+        }
+        degrees = 0;
+        previewSize = null;
+        supportedPreviewSizes = null;
+        autoFocusCallback = null;
+        previewCallback = null;
+        if (camera != null) {
+            camera.release();
+            camera = null;
+        }
+        cameraId = -1;
+    }
+
+    public int getCameraDisplayOrientation() {
+        return degrees;
+    }
+
+    public void setCameraDisplayOrientation(Activity activity) {
         Camera.CameraInfo info = new Camera.CameraInfo();
         Camera.getCameraInfo(cameraId, info);
         int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
@@ -190,7 +122,112 @@ public class CameraPreview extends SurfaceView implements SurfaceHolder.Callback
         else {  // back-facing
             result = (info.orientation - degrees + 360) % 360;
         }
-        return result;
+        this.degrees = result;
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        final int width = resolveSize(getSuggestedMinimumWidth(), widthMeasureSpec);
+        final int height = resolveSize(getSuggestedMinimumHeight(), heightMeasureSpec);
+        if (supportedPreviewSizes != null) {
+            previewSize = getOptimalPreviewSize(supportedPreviewSizes, width, height);
+            setMeasuredDimension(width, height);
+        }
+        else
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+
+    private Camera.Size getOptimalPreviewSize(List<Camera.Size> sizes, int w, int h) {
+        if (sizes == null)
+            return null;
+
+        double ASPECT_TOLERANCE = 0.1;
+        double targetRatio = (double) h / w;
+
+        Camera.Size optimalSize = null;
+        double minDiff = Double.MAX_VALUE;
+
+        for (Camera.Size size : sizes) {
+            double ratio = (double) size.height / size.width;
+            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE)
+                continue;
+            if (Math.abs(size.height - h) < minDiff) {
+                optimalSize = size;
+                minDiff = Math.abs(size.height - h);
+            }
+        }
+
+        if (optimalSize == null) {
+            minDiff = Double.MAX_VALUE;
+            for (Camera.Size size : sizes) {
+                if (Math.abs(size.height - h) < minDiff) {
+                    optimalSize = size;
+                    minDiff = Math.abs(size.height - h);
+                }
+            }
+        }
+
+        return optimalSize;
+    }
+
+    public void surfaceCreated(SurfaceHolder holder) {
+        if (camera != null) {
+            try {
+                camera.setPreviewDisplay(holder);
+            }
+            catch (IOException e) {
+                Log.d(TAG, "surfaceCreated error: " + e.getMessage());
+            }
+        }
+    }
+
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        if (camera != null) {
+            try {
+                camera.stopPreview();
+                camera.setPreviewDisplay(null);
+            }
+            catch (IOException e) {
+                Log.d(TAG, "surfaceDestroyed error: " + e.getMessage());
+            }
+        }
+    }
+
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        /*
+         * If your preview can change or rotate, take care of those events here.
+         * Make sure to stop the preview before resizing or reformatting it.
+         */
+        if (this.holder.getSurface() == null) {
+            // preview surface does not exist
+            return;
+        }
+
+        // stop preview before making changes
+        try {
+            if (camera != null)
+                camera.stopPreview();
+        }
+        catch (Exception e) {
+            // ignore: tried to stop a non-existent preview
+        }
+
+        try {
+            if (camera != null) {
+                Camera.Parameters parameters = camera.getParameters();
+                if (parameters != null) {
+                    parameters.setPreviewSize(previewSize.width, previewSize.height);
+                    //camera.setDisplayOrientation(90);
+                    camera.setPreviewDisplay(holder);
+                    camera.setPreviewCallback(previewCallback);
+                    camera.startPreview();
+                    camera.autoFocus(autoFocusCallback);
+                }
+            }
+        }
+        catch (Exception e) {
+            Log.d(TAG, "surfaceChanged error: " + e.getMessage());
+        }
     }
 
 }
