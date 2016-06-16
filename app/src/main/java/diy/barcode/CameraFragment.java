@@ -2,6 +2,8 @@ package diy.barcode;
 
 import android.hardware.Camera;
 import android.os.Bundle;
+import android.os.Handler;
+import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -11,10 +13,27 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 
+import net.sourceforge.zbar.Config;
+import net.sourceforge.zbar.Image;
+import net.sourceforge.zbar.ImageScanner;
+import net.sourceforge.zbar.Symbol;
+import net.sourceforge.zbar.SymbolSet;
+
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * A camera preview fragment.
+ */
 public class CameraFragment extends Fragment implements SurfaceHolder.Callback {
+
+    static {
+        System.loadLibrary("iconv");
+    }
+
+    public interface Callback {
+        void getData(@Nullable String data);
+    }
 
     private static final String TAG = CameraFragment.class.getSimpleName();
 
@@ -26,9 +45,37 @@ public class CameraFragment extends Fragment implements SurfaceHolder.Callback {
     private Camera.Parameters defaultParameters;
     private Camera.Parameters parameters;
 
-    static {
-        System.loadLibrary("iconv");
-    }
+    private Handler handler = new Handler();
+    private Runnable doAutoFocus = new Runnable() {
+        public void run() {
+            camera.autoFocus(autoFocusCallback);
+        }
+    };
+    private Camera.AutoFocusCallback autoFocusCallback = new Camera.AutoFocusCallback() {
+        public void onAutoFocus(boolean success, Camera camera) {
+            handler.postDelayed(doAutoFocus, 1000);
+        }
+    };
+
+    private ImageScanner scanner;
+    private Callback callback;
+    private Camera.PreviewCallback previewCallback = new Camera.PreviewCallback() {
+        public void onPreviewFrame(byte[] data, Camera camera) {
+            Camera.Parameters parameters = camera.getParameters();
+            Camera.Size size = parameters.getPreviewSize();
+
+            Image barcode = new Image(size.width, size.height, "Y800");
+            barcode.setData(data);
+
+            int result = scanner.scanImage(barcode);
+            if (result != 0 && callback != null) {
+                SymbolSet syms = scanner.getResults();
+                for (Symbol sym : syms) {
+                    callback.getData(sym.getData());
+                }
+            }
+        }
+    };
 
     public CameraFragment() {
         // Required empty public constructor
@@ -60,6 +107,12 @@ public class CameraFragment extends Fragment implements SurfaceHolder.Callback {
         camera = null;
         defaultParameters = null;
         parameters = null;
+
+        scanner = new ImageScanner();
+        scanner.setConfig(0, Config.X_DENSITY, 3);
+        scanner.setConfig(0, Config.Y_DENSITY, 3);
+
+        callback = null;
         return view;
     }
 
@@ -103,9 +156,12 @@ public class CameraFragment extends Fragment implements SurfaceHolder.Callback {
         Log.d(TAG, String.format("surfaceChanged(): surfaceHolder == %h, format = %d, w = %d, h = %d", surfaceHolder, format, w, h));
         if (camera != null) {
             try {
+                camera.setPreviewCallback(null);
                 camera.stopPreview();
                 camera.setPreviewDisplay(surfaceHolder);
                 camera.startPreview();
+                camera.setPreviewCallback(previewCallback);
+                camera.autoFocus(autoFocusCallback);
             }
             catch (Exception e) {
                 Log.d(TAG, "Camera cannot starting preview! error: " + e.getMessage());
@@ -117,6 +173,8 @@ public class CameraFragment extends Fragment implements SurfaceHolder.Callback {
     public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
         Log.d(TAG, String.format("surfaceDestroyed(): surfaceHolder == %h", surfaceHolder));
         if (camera != null) {
+            handler.removeCallbacks(doAutoFocus);
+            camera.setPreviewCallback(null);
             camera.stopPreview();
         }
     }
@@ -134,6 +192,14 @@ public class CameraFragment extends Fragment implements SurfaceHolder.Callback {
         }
     }
 
+    public Callback getCallback() {
+        return callback;
+    }
+
+    public void setCallback(@Nullable Callback value) {
+        callback = value;
+    }
+
     private void acquire() {
         if (cameraId >= 0) {
             if (camera == null) {
@@ -144,6 +210,8 @@ public class CameraFragment extends Fragment implements SurfaceHolder.Callback {
                     try {
                         camera.setPreviewDisplay(surfaceHolder);
                         camera.startPreview();
+                        camera.setPreviewCallback(previewCallback);
+                        camera.autoFocus(autoFocusCallback);
                     }
                     catch (IOException e) {
                         Log.d(TAG, "camera.setPreviewDisplay(surfaceHolder) error: " + e.getMessage());
@@ -162,6 +230,8 @@ public class CameraFragment extends Fragment implements SurfaceHolder.Callback {
         if (camera != null) {
             Log.d(TAG, "release(): camera != null");
             try {
+                handler.removeCallbacks(doAutoFocus);
+                camera.setPreviewCallback(null);
                 camera.stopPreview();
                 camera.setPreviewDisplay(null);
             }
