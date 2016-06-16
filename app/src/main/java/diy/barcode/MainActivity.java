@@ -1,12 +1,11 @@
 package diy.barcode;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
 
@@ -26,38 +25,27 @@ public class MainActivity extends AppCompatActivity implements CameraFragment.Ca
         fragment = (CameraFragment) getSupportFragmentManager().findFragmentById(R.id.fragment_camera);
         fragment.setCallback(this);
         fragment.setCameraId(0);
+        // use this code to pause/resume
+        /*
+        if (fragment.getCameraId() < 0)
+            fragment.setCameraId(0);
+        else
+            fragment.setCameraId(-1);
+        */
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         if (fab != null)
             fab.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setIcon(R.mipmap.ic_launcher)
+                            .setTitle(R.string.about_dialog_title)
+                            .setMessage(R.string.about_dialog_message)
+                            .setPositiveButton(R.string.about_dialog_positive, null)
+                            .show();
                 }
             });
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-        if (id == R.id.action_about) {
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
     }
 
     @Override
