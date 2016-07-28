@@ -18,4 +18,3 @@ And finally, thank you GitHub (https://github.com/taworn/) for hold my repositor
 Taworn T.
 
 My humble English is very poor, I'm not English native, sorry. T_T
-
